@@ -3,51 +3,14 @@
 #include <list>
 #include <cmath>
 
-//Array-based image format (Better for buffered display)
-struct Image
-{
-    //Struct for holding data of a single image array-index
-    struct Pixel
-    {
-        WORD colour = 0;
-        char character = ' ';
-    };
+#define BACKGROUND_WHITE BACKGROUND_BLUE|BACKGROUND_GREEN|BACKGROUND_RED
+#define FOREGROUND_WHITE FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
 
-    HANDLE consoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-
-    int sizeX,sizeY;
-    Pixel** data;
-
-    Image(int sX,int sY)
-    : sizeX(sX)
-    , sizeY(sY)
-    {
-        data = new Pixel*[sizeY];
-        for(int i = 0; i < sizeY; i++)
-        {
-            data[i] = new Pixel[sizeX];
-        }
-    }
-
-    //Displays image to console window.
-    void Display()
-    {
-        CONSOLE_SCREEN_BUFFER_INFO oldInfo;
-        GetConsoleScreenBufferInfo(consoleOut,&oldInfo);
-
-        for(int y = 0; y < sizeY; y++)
-        {
-            for(int x = 0; x < sizeX; x++)
-            {
-                SetConsoleTextAttribute(consoleOut,data[y][x].colour);
-                SetConsoleCursorPosition(consoleOut,{(short)x,(short)y});
-                std::cout << data[y][x].character;
-            }
-        }
-        SetConsoleTextAttribute(consoleOut,oldInfo.wAttributes);
-    }
-};
-
+//Remember to remove redundant bloat type shit
+//Certain stuff should be a member of the plot/image struct and not of
+//the buffers the buffer should just be a buffer and other functionality should
+//be a member of the lower-level structs or offloaded to returning functions
+//SHOULD SHOULD SHOULD I mean it kind of doesn't matter but get this shit working
 
 // List-based image format (better for raster graphics)
 struct Plot
@@ -78,143 +41,137 @@ struct Plot
     : name(n)
     , points(p)
     {}
+
+    Plot(std::list<Point> p)
+    : name("Name Not Set")
+    , points(p)
+    {}
+
+    Plot()
+    {}
+
+    void SetPoints(std::list<Point> pt)
+    {
+        points = pt;
+    }
+
+    void AddPoints(std::list<Point> pt)
+    {
+        for(Point temp:pt)
+        {
+            points.push_back(temp);
+        }
+    }
+
+    std::list<Point> GetPoints()
+    {
+        return points;
+    }
 };
 
-//Buffers several plots into a single image.
-struct PlotBuffer
-{
-    std::list<Plot> buffer; //list-based buffer for raster graphic plots
 
-    Image* bufferedImage; //Image to act as container for buffered display
+//Array-based image format (Better for buffered display)
+struct Image
+{
+    //Struct for holding data of a single image array-index
+    struct Pixel
+    {
+        WORD colour = 0;
+        char character = ' ';
+    };
 
     HANDLE consoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    PlotBuffer(int sX,int sY)
-    {
-        bufferedImage = new Image(sX,sY);
-    }
+    int sizeX,sizeY;
+    Pixel** data;
 
-    //Returns the currently buffered image.
-    Image GetImage()
+    Image(int sX,int sY)
+    : sizeX(sX)
+    , sizeY(sY)
     {
-        return *bufferedImage;
-    }
-
-    void AddPlot(Plot pl)
-    {
-        buffer.push_back(pl);
-    }
-
-    void RemovePlot(std::string name)
-    {
-        for(std::list<Plot>::iterator it = buffer.begin(); it != buffer.end(); it++)
+        data = new Pixel*[sizeY];
+        for(int i = 0; i < sizeY; i++)
         {
-            if(it->name == name){
-                buffer.erase(it);
-                break;
-            }
+            data[i] = new Pixel[sizeX];
         }
     }
 
-    //Reassigns the point-list of the named plot in the buffer-list.
-    void EditPlot(std::string name, std::list<Plot::Point> pt)
+    //Draw pixel onto image
+    void Draw(int x,int y,WORD colour,char c = ' ')
     {
-        for(std::list<Plot>::iterator it = buffer.begin(); it != buffer.end(); it++)
+        if(x < sizeX && y < sizeY)
         {
-            if(it->name == name)
+            data[y][x].character = c;
+            data[y][x].colour = colour;
+        }
+    }
+
+    //Insert contents of another image into this image at position x/y.
+    void InsertImage(Image img,int x = 0,int y = 0)
+    {
+        for(int iy = 0; iy < sizeY && iy < img.sizeY; iy++)
+        {
+            for(int ix = 0; ix < sizeX && ix < img.sizeX; ix++)
             {
-                it->points = pt;
-                break;
+                data[iy+y][ix+x] = img.data[iy][ix];
             }
         }
     }
 
-    std::list<Plot::Point> GetPlotPoints(std::string n)
+    //Converts plot-data to image-data and inserts it to image at x/y.
+    void InsertPlot(Plot pl,int x = 0, int y = 0)
     {
-        for(Plot pl:buffer)
+        for(Plot::Point pt:pl.points)
         {
-            if(pl.name == n)
+            if(pt.x < sizeX && pt.y < sizeY)
             {
-                return pl.points;
-            }
-        }
-        std::list<Plot::Point> error;
-        return error;
-    }
-
-    void ClearBuffer()
-    {
-        for(int y = 0; y < bufferedImage->sizeY; y++)
-        {
-            for(int x = 0; x < bufferedImage->sizeX; x++)
-            {
-                bufferedImage->data[y][x].character = ' ';
-                bufferedImage->data[y][x].colour = 0;
+                data[pt.y+y][pt.x+x].colour = pt.colour;
+                data[pt.y+y][pt.x+x].character = pt.character;
             }
         }
     }
 
-    void BufferPlots()//Merge raster-plots into image
-    {
-        ClearBuffer();
-        for(Plot pl:buffer)
-        {
-            for(Plot::Point pt:pl.points)
-            {
-                bufferedImage->data[pt.y][pt.x].character = pt.character;
-                bufferedImage->data[pt.y][pt.x].colour = pt.colour;
-            }
-        }
-    }
-
-    //Displays image buffered from plot list. But you should probably use the image buffer for this.
-    //I'm not your mom though.
+    //Displays image to console window.
     void Display()
     {
-        bufferedImage->Display();
+        CONSOLE_SCREEN_BUFFER_INFO oldInfo;
+        GetConsoleScreenBufferInfo(consoleOut,&oldInfo);
+        SetConsoleCursorPosition(consoleOut,{0,0});
+        for(int y = 0; y < sizeY; y++)
+        {
+            for(int x = 0; x < sizeX; x++)
+            {
+                SetConsoleTextAttribute(consoleOut,data[y][x].colour);
+                std::cout << data[y][x].character;
+            }
+            std::cout << "\n";
+        }
+        SetConsoleTextAttribute(consoleOut,oldInfo.wAttributes);
     }
 };
 
-//Buffers several images into one for simultaneous display.
-struct ImageBuffer
+void ClearConsole()
 {
-    std::list<Image> buffer;
-    Image* bufferedImage;
-
-    ImageBuffer(int sX,int sY)
+    static HANDLE consoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO csbInfo;
+    GetConsoleScreenBufferInfo(consoleOut,&csbInfo);
+    SetConsoleCursorPosition(consoleOut,{0,0});
+    for(int iy = 0; iy < csbInfo.dwSize.Y; iy++)
     {
-        bufferedImage = new Image(sX,sY);
-    }
-
-    void BufferImages()//Merge images in buffer list to a single output image.
-    {
-        for(Image img:buffer)
+        for(int ix = 0; ix < csbInfo.dwSize.X; ix++)
         {
-            for(int y = 0; y < img.sizeY && y < bufferedImage->sizeY; y++)
-            {
-                for(int x = 0; x < img.sizeX && x < bufferedImage->sizeX; x++)
-                {
-                    bufferedImage->data[y][x] = img.data[y][x];
-                }
-            }
+            std::cout << ' ';
         }
     }
+    SetConsoleCursorPosition(consoleOut,{0,0});
+}
 
-    void Display()//100% doesn't display anything
-    {
-        bufferedImage->Display();
-    }
-
-    void AddImage(Image img)
-    {
-        buffer.push_back(img);
-    }
-};
-
-std::list<Plot::Point> GenerateLine(int x1,int y1,int x2,int y2,WORD colour,char c = ' ')
+//Generate line by slope intercept.
+std::list<Plot::Point> GenerateLine(int x1,int y1,int x2,int y2,WORD colour,std::string text = " ")
 {
     //Create list for line points (will be returned)
     std::list<Plot::Point> line;
+    char c;
 
     //Calculate delta x/y
     float deltaX = x2-x1;
@@ -246,58 +203,87 @@ std::list<Plot::Point> GenerateLine(int x1,int y1,int x2,int y2,WORD colour,char
 
     if(slopeUndefined == true){ //Case for vertical lines.
         for(int a = 0; a <= length; a++){
-            line.push_back(
-                {
-                    a*stepX+x1
-                    ,a*stepY+y1
-                    ,colour
-                    ,c
-                }
-            );
-
+            if(a < (int)text.length())
+            {
+                c = text[a];
+            }
+            else
+            {
+                c = ' ';
+            }
+            line.push_back( {a*stepX+x1,a*stepY+y1,colour,c} );
         }
     }
 
     else if(abs(deltaY)>abs(deltaX)){
         float x,y;
         for(int a = 0; a <= length; a++){
+            if(a < (int)text.length())
+            {
+                c = text[a];
+            }
+            else
+            {
+                c = ' ';
+            }
             //deltaY is the large value so you can just increment it and solve for X.
             y = a*stepY+y1;
             x = (y-yIntercept)/slope;
             //Round x for rasterizing graphics.
             std::round(x);
             //Cast x/y as int for rasterized point list.
-            line.push_back(
-                {
-                     (int)x
-                    ,(int)y
-                    ,colour
-                    ,c
-                }
-            );
+            line.push_back( {(int)x,(int)y,colour,c} );
         }
     }
+
     else{
         float x,y;
         for(int a = 0; a <= length; a++){
+            if(a < (int)text.length())
+            {
+                c = text[a];
+            }
+            else
+            {
+                c = ' ';
+            }
             //deltaX is the large value so you can just increment it and solve for Y.
             x = a*stepX+x1;
             y = slope*x+yIntercept;
             //Round y for rasterizing graphics.
             std::round(y);
             //Cast x/y as int for rasterized point list.
-            line.push_back(
-                {
-                     (int)x
-                    ,(int)y
-                    ,colour
-                    ,c
-                }
-            );
+            line.push_back( {(int)x,(int)y,colour,c} );
         }
     }
 
     return line;
+}
+
+std::list<Plot::Point> GenerateSquare(int x1,int y1,int x2,int y2,WORD colour)
+{
+    Plot temp;
+    temp.AddPoints(GenerateLine(x1,y1,x2,y1,colour));
+    temp.AddPoints(GenerateLine(x2,y1,x2,y2,colour));
+    temp.AddPoints(GenerateLine(x2,y2,x1,y2,colour));
+    temp.AddPoints(GenerateLine(x1,y2,x1,y1,colour));
+    return temp.points;
+}
+
+//Generate square by line-extrusion
+std::list<Plot::Point> GenerateFilledSquare(int x1,int y1,int x2,int y2,WORD colour)
+{
+    std::list<Plot::Point> square,temp;
+
+    for(int y = 0; y <= y2-y1; y++)
+    {
+        temp = GenerateLine(x1,y1+y,x2,y1+y,colour);
+        for(Plot::Point pt:temp)
+        {
+            square.push_back(pt);
+        }
+    }
+    return square;
 }
 
 std::list<Plot::Point> Translate(std::list<Plot::Point> oldPos,int x,int y)
