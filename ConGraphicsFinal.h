@@ -6,12 +6,6 @@
 #define BACKGROUND_WHITE BACKGROUND_BLUE|BACKGROUND_GREEN|BACKGROUND_RED
 #define FOREGROUND_WHITE FOREGROUND_BLUE|FOREGROUND_GREEN|FOREGROUND_RED
 
-//Remember to remove redundant bloat type shit
-//Certain stuff should be a member of the plot/image struct and not of
-//the buffers the buffer should just be a buffer and other functionality should
-//be a member of the lower-level structs or offloaded to returning functions
-//SHOULD SHOULD SHOULD I mean it kind of doesn't matter but get this shit working
-
 // List-based image format (better for raster graphics)
 struct Plot
 {
