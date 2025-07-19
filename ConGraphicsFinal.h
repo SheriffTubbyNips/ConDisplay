@@ -126,19 +126,30 @@ struct Image
     }
 
     //Displays image to console window.
-    void Display()
+    //Displays image to console window.
+    void Display(int resolutionX = 1, int resolutionY = 1)
     {
+        CONSOLE_CURSOR_INFO curInfo;
+        GetConsoleCursorInfo(consoleOut,&curInfo);
+        curInfo.bVisible = false;
+        SetConsoleCursorInfo(consoleOut,&curInfo);
         CONSOLE_SCREEN_BUFFER_INFO oldInfo;
         GetConsoleScreenBufferInfo(consoleOut,&oldInfo);
         SetConsoleCursorPosition(consoleOut,{0,0});
-        for(int y = 0; y < sizeY; y++)
+        for(int y = 0; y < sizeY; y++) //Run loop for each y-level
         {
-            for(int x = 0; x < sizeX; x++)
+            for(int height = 1; height <= resolutionY; height++)//Loop line printing a number of times equal to pixel height
             {
-                SetConsoleTextAttribute(consoleOut,data[y][x].colour);
-                std::cout << data[y][x].character;
+                for(int x = 0; x < sizeX; x++) //Run loop for each x-coordinate on current y-level
+                {
+                    SetConsoleTextAttribute(consoleOut,data[y][x].colour);
+                    for(int width = 1; width <= resolutionX; width++) //Loop character-space printing a number of times equal to the pixel width
+                    {
+                        std::cout << data[y][x].character;
+                    }
+                }
+                std::cout << "\n";
             }
-            std::cout << "\n";
         }
         SetConsoleTextAttribute(consoleOut,oldInfo.wAttributes);
     }
@@ -146,7 +157,7 @@ struct Image
 
 void ClearConsole()
 {
-    static HANDLE consoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE consoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbInfo;
     GetConsoleScreenBufferInfo(consoleOut,&csbInfo);
     SetConsoleCursorPosition(consoleOut,{0,0});
